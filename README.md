@@ -15,12 +15,6 @@ A web application that performs technical analysis on stocks using real-time mar
 - Interactive price chart
 - Responsive design
 
-## Setup
-
-1. Clone this repository to your local machine
-2. Get a free API key from [Alpha Vantage](https://www.alphavantage.co/support/#api-key)
-3. Open `script.js` and replace `YOUR_API_KEY` with your actual Alpha Vantage API key
-4. Open `index.html` in your web browser
 
 ## Usage
 
@@ -38,7 +32,4 @@ The application calculates and displays the following technical indicators:
 - **Volume Analysis**: Daily volume changes
 - **Trend Analysis**: Current market trend based on price and moving averages
 - **Support/Resistance**: Key price levels based on recent price action
-
-## Note
-
-The free tier of Alpha Vantage API has rate limits (5 API calls per minute and 500 calls per day). For production use, consider upgrading to a paid plan. 
+ 
