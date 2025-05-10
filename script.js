@@ -16,11 +16,11 @@ async function analyzeStock(symbol) {
         let displaySymbol = symbol;
         
         if (selectedMarket === 'US') {
-            apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=DOFHFQP9T7JC1EAE`;
+            apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=2XBPSVXNUBV43UP4`;
         } else {
             // For Indian stocks, we'll use the BSE format
             displaySymbol = `${symbol} (BSE)`;
-            apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}.BSE&apikey=DOFHFQP9T7JC1EAE`;
+            apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}.BSE&apikey=2XBPSVXNUBV43UP4`;
         }
 
         const response = await fetch(apiUrl);
@@ -225,7 +225,7 @@ async function fetchAndDisplayNews(symbol) {
         }
         
         // First attempt with specific stock
-        let response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${tickerSymbol}&apikey=DOFHFQP9T7JC1EAE`);
+        let response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${tickerSymbol}&apikey=2XBPSVXNUBV43UP4`);
         let data = await response.json();
 
         console.log('Initial News API Response:', data);
@@ -234,7 +234,7 @@ async function fetchAndDisplayNews(symbol) {
         if (data.Information || !data.feed || data.feed.length === 0) {
             console.log('Falling back to general market news');
             // Try with general market news
-            response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=financial_markets&apikey=DOFHFQP9T7JC1EAE`);
+            response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=financial_markets&apikey=2XBPSVXNUBV43UP4`);
             data = await response.json();
         }
 
