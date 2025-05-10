@@ -1,8 +1,10 @@
 let priceChart;
+let selectedMarket = 'US'; // Default market
 
 document.getElementById('stockForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const symbol = document.getElementById('stockSymbol').value.toUpperCase();
+    selectedMarket = document.getElementById('marketSelect').value;
     await analyzeStock(symbol);
 });
 
@@ -10,7 +12,18 @@ async function analyzeStock(symbol) {
     try {
         showLoading();
         
-        const response = await fetch(`https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=XVPGT1Y53084FR4V`);
+        let apiUrl;
+        let displaySymbol = symbol;
+        
+        if (selectedMarket === 'US') {
+            apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=DOFHFQP9T7JC1EAE`;
+        } else {
+            // For Indian stocks, we'll use the BSE format
+            displaySymbol = `${symbol} (BSE)`;
+            apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}.BSE&apikey=DOFHFQP9T7JC1EAE`;
+        }
+
+        const response = await fetch(apiUrl);
         const data = await response.json();
 
         if (data['Error Message']) {
@@ -18,6 +31,10 @@ async function analyzeStock(symbol) {
         }
 
         const timeSeriesData = data['Time Series (Daily)'];
+        if (!timeSeriesData) {
+            throw new Error('No data available for this stock. Please check if the symbol is correct.');
+        }
+
         const prices = [];
         const dates = [];
         const volumes = [];
@@ -29,12 +46,16 @@ async function analyzeStock(symbol) {
             volumes.unshift(parseInt(values['6. volume']));
         }
 
+        if (prices.length === 0) {
+            throw new Error('No price data available for this stock');
+        }
+
         // Create price chart
-        createPriceChart(dates, prices, symbol);
+        createPriceChart(dates, prices, displaySymbol);
 
         // Perform technical analysis
         const analysis = performTechnicalAnalysis(prices, volumes);
-        displayResults(analysis, symbol);
+        displayResults(analysis, displaySymbol);
 
         // Fetch and display news
         await fetchAndDisplayNews(symbol);
@@ -160,16 +181,18 @@ function findResistance(prices) {
 
 function displayResults(analysis, symbol) {
     const resultsDiv = document.getElementById('analysisResults');
+    const currencySymbol = selectedMarket === 'IN' ? '₹' : '$';
+    
     resultsDiv.innerHTML = `
         <div class="analysis-item">
             <h3>Price Information</h3>
-            <p>Current Price: $${analysis.currentPrice.toFixed(2)}</p>
+            <p>Current Price: ${currencySymbol}${analysis.currentPrice.toFixed(2)}</p>
             <p>Price Change: ${analysis.priceChange}%</p>
         </div>
         <div class="analysis-item">
             <h3>Moving Averages</h3>
-            <p>20-day SMA: $${analysis.sma20}</p>
-            <p>50-day SMA: $${analysis.sma50}</p>
+            <p>20-day SMA: ${currencySymbol}${analysis.sma20}</p>
+            <p>50-day SMA: ${currencySymbol}${analysis.sma50}</p>
         </div>
         <div class="analysis-item">
             <h3>Technical Indicators</h3>
@@ -179,8 +202,8 @@ function displayResults(analysis, symbol) {
         <div class="analysis-item">
             <h3>Trend Analysis</h3>
             <p>Current Trend: ${analysis.trend}</p>
-            <p>Support Level: $${analysis.support}</p>
-            <p>Resistance Level: $${analysis.resistance}</p>
+            <p>Support Level: ${currencySymbol}${analysis.support}</p>
+            <p>Resistance Level: ${currencySymbol}${analysis.resistance}</p>
         </div>
     `;
 }
@@ -195,8 +218,25 @@ function hideLoading() {
 
 async function fetchAndDisplayNews(symbol) {
     try {
-        const response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${symbol}&apikey=6T7N2XIOJP6N3CYL`);
-        const data = await response.json();
+        let tickerSymbol = symbol;
+        if (selectedMarket === 'IN') {
+            // For Indian stocks, try different formats
+            tickerSymbol = `${symbol}.BSE`; // Try BSE format first
+        }
+        
+        // First attempt with specific stock
+        let response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${tickerSymbol}&apikey=DOFHFQP9T7JC1EAE`);
+        let data = await response.json();
+
+        console.log('Initial News API Response:', data);
+
+        // If we get an error or no data, try with general market news
+        if (data.Information || !data.feed || data.feed.length === 0) {
+            console.log('Falling back to general market news');
+            // Try with general market news
+            response = await fetch(`https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=financial_markets&apikey=DOFHFQP9T7JC1EAE`);
+            data = await response.json();
+        }
 
         if (data.feed && data.feed.length > 0) {
             const newsContainer = document.getElementById('newsSection');
@@ -205,26 +245,59 @@ async function fetchAndDisplayNews(symbol) {
             const newsList = document.createElement('div');
             newsList.className = 'news-list';
             
-            data.feed.slice(0, 5).forEach(article => {
-                const newsItem = document.createElement('div');
-                newsItem.className = 'news-item';
-                newsItem.innerHTML = `
-                    <h4>${article.title}</h4>
-                    <p class="news-summary">${article.summary}</p>
-                    <div class="news-meta">
-                        <span class="news-source">${article.source}</span>
-                        <span class="news-time">${new Date(article.time_published).toLocaleDateString()}</span>
-                    </div>
-                    <a href="${article.url}" target="_blank" class="news-link">Read More</a>
-                `;
-                newsList.appendChild(newsItem);
+            // Filter news to ensure it's relevant to the stock or market
+            const relevantNews = data.feed.filter(article => {
+                if (selectedMarket === 'IN') {
+                    // For Indian stocks, look for mentions of the company name or Indian market
+                    const content = (article.title + ' ' + article.summary).toLowerCase();
+                    return content.includes(symbol.toLowerCase()) || 
+                           content.includes('indian market') || 
+                           content.includes('bse') || 
+                           content.includes('nse');
+                }
+                return true;
             });
+
+            if (relevantNews.length === 0) {
+                // If no specific news, show general market news
+                newsContainer.innerHTML = '<h3>Latest News</h3><p>Showing general market news:</p>';
+                data.feed.slice(0, 5).forEach(article => {
+                    const newsItem = document.createElement('div');
+                    newsItem.className = 'news-item';
+                    newsItem.innerHTML = `
+                        <h4>${article.title}</h4>
+                        <p class="news-summary">${article.summary}</p>
+                        <div class="news-meta">
+                            <span class="news-source">${article.source}</span>
+                            <span class="news-time">${new Date(article.time_published).toLocaleDateString()}</span>
+                        </div>
+                        <a href="${article.url}" target="_blank" class="news-link">Read More</a>
+                    `;
+                    newsList.appendChild(newsItem);
+                });
+            } else {
+                relevantNews.slice(0, 5).forEach(article => {
+                    const newsItem = document.createElement('div');
+                    newsItem.className = 'news-item';
+                    newsItem.innerHTML = `
+                        <h4>${article.title}</h4>
+                        <p class="news-summary">${article.summary}</p>
+                        <div class="news-meta">
+                            <span class="news-source">${article.source}</span>
+                            <span class="news-time">${new Date(article.time_published).toLocaleDateString()}</span>
+                        </div>
+                        <a href="${article.url}" target="_blank" class="news-link">Read More</a>
+                    `;
+                    newsList.appendChild(newsItem);
+                });
+            }
             
             newsContainer.appendChild(newsList);
         } else {
-            document.getElementById('newsSection').innerHTML = '<h3>Latest News</h3><p>No news available for this stock.</p>';
+            document.getElementById('newsSection').innerHTML = '<h3>Latest News</h3><p>No news available at the moment. Please try again later.</p>';
         }
     } catch (error) {
-        document.getElementById('newsSection').innerHTML = '<h3>Latest News</h3><p>Error fetching news data.</p>';
+        console.error('News fetch error:', error);
+        document.getElementById('newsSection').innerHTML = '<h3>Latest News</h3><p>Error fetching news data. Please try again later.</p>';
     }
 }
